@@ -195,7 +195,7 @@ export function registerTests(S, { assert, eq, FIX, here, newCtx, URL_ }) {
     await c.page.fill('.search', '');
     await c.page.selectOption('.sort', 'amount_desc'); await c.page.waitForTimeout(100);
     assert((await c.page.locator('.pcard').first().textContent()).includes('Arun') === false && (await c.page.locator('.pcard').first().textContent()).includes('Mohamed'), 'highest premium first');
-    await c.page.click('.chip-btn:has-text("Overdue")'); await c.page.waitForSelector('.pcard');
+    await c.page.click('.chip-btn:has-text("Overdue")'); await c.page.waitForFunction(() => document.querySelectorAll('.pcard').length === 1);
     eq(await c.page.locator('.pcard').count(), 1); assert((await c.page.locator('.pcard').textContent()).includes('Senthil'));
     assert((await c.page.locator('.pcard .badge').textContent()).includes('8 days overdue'));
   });
