@@ -1,0 +1,10 @@
+{
+  "appId": "in.licsmartfollowup.app",
+  "appName": "LIC Smart Follow-up",
+  "webDir": "public",
+  "server": { "androidScheme": "https" },
+  "android": { "allowMixedContent": false, "webContentsDebuggingEnabled": false },
+  "plugins": {
+    "LocalNotifications": { "smallIcon": "ic_stat_notify", "iconColor": "#0B5BD3" }
+  }
+}

@@ -1,0 +1,12 @@
+node_modules/
+android/
+ios/
+.DS_Store
+public/vendor/tesseract/
+tests/e2e/fail-*.png
+
+# Never commit customer data
+*.pdf
+!tests/fixtures/*.pdf
+*backup*.json
+*.licbackup

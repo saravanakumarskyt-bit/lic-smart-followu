@@ -1,0 +1,33 @@
+// Renders key screens with synthetic data to docs/screenshots/ (phone size). Usage: node scripts/screenshots.mjs
+import path from 'node:path';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { startServer } from './serve.mjs';
+import { loadPlaywright, chromePath, FIX, FIXED_NOW } from '../tests/e2e/harness.mjs';
+
+const out = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'docs', 'screenshots');
+fs.mkdirSync(out, { recursive: true });
+const { chromium } = await loadPlaywright();
+const server = await startServer(0, '/app/');
+const URL_ = `http://localhost:${server.address().port}/app/`;
+const browser = await chromium.launch({ executablePath: chromePath(), args: ['--no-sandbox'] });
+const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, timezoneId: 'Asia/Kolkata', locale: 'en-IN' });
+const page = await ctx.newPage();
+await page.clock.setFixedTime(new Date(FIXED_NOW));
+const shot = async (name) => { await page.waitForTimeout(250); await page.screenshot({ path: path.join(out, `${name}.png`) }); };
+await page.goto(URL_); await page.waitForFunction(() => window.__licReady);
+await shot('01-welcome');
+await page.click('#nav a[data-nav=import]'); await page.setInputFiles('#pdf-input', ['sample-a-standard.pdf', 'sample-b-twoline-headers.pdf'].map((f) => path.join(FIX, f)));
+await page.waitForSelector('text=Check extracted data'); await shot('02-verify');
+await page.click('.savebar .btn.primary'); await page.waitForSelector('text=Import complete'); await shot('03-report');
+await page.goto(URL_ + '#/home'); await page.waitForSelector('.today-card'); await shot('04-dashboard');
+await page.evaluate(() => window.scrollTo(0, 700)); await shot('04b-dashboard-scrolled'); 
+await page.goto(URL_ + '#/policies/next7'); await page.waitForSelector('.pcard'); await shot('05-policies');
+await page.click('.pcard .icon-btn.wa'); await page.waitForSelector('.msg-text'); await shot('06-message');
+await page.click('.seg:has-text("தமிழ்")'); await shot('07-message-tamil'); await page.click('.sheet .icon-btn[aria-label=Close]');
+await page.goto(URL_ + '#/calendar'); await page.waitForSelector('.cal'); await page.click('.cal-cell:has(.cal-day:text-is("19"))'); await shot('08-calendar');
+await page.goto(URL_ + '#/notifications'); await page.waitForSelector('text=Send test notification'); await shot('09-notifications');
+await page.goto(URL_ + '#/more'); await shot('10-more');
+await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark')); await page.goto(URL_ + '#/home'); await page.waitForSelector('.today-card'); await shot('11-dark');
+await browser.close(); server.close();
+console.log(fs.readdirSync(out).join('\n'));
