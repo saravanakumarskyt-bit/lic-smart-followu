@@ -171,3 +171,36 @@ export function matchesQuery(p, query) {
   if (String(p.notes || '').toLowerCase().includes(q)) return true;
   return false;
 }
+
+/**
+ * Commission for a payment. The due list gives the estimated commission (EstCom) for the whole amount due (TotPrem).
+ * Commission earned is that estimate in proportion to the amount actually received, never more than the estimate.
+ * Returns null when the policy has no commission estimate (the advisor can still type the figure in).
+ */
+export function commissionForPayment(p, amountPaid) {
+  const est = Number(p.estCommission);
+  if (!(est > 0)) return null;
+  const total = Number(p.totalPremium);
+  const paid = Number(amountPaid);
+  if (!(total > 0) || !(paid >= 0)) return est;
+  return Math.round(Math.min(est, (est * paid) / total) * 100) / 100;
+}
+
+/** Commission summary: earned = confirmed payments only. Pending = estimate on policies still unpaid. */
+export function commissionSummary(policies, today) {
+  const key = monthKey(today);
+  const res = { earnedMonth: 0, earnedMonthCount: 0, earnedTotal: 0, pendingEstimate: 0, pendingCount: 0 };
+  for (const p of policies) {
+    if (isPaid(p)) {
+      const c = Number(p.commissionEarned) || 0;
+      res.earnedTotal += c;
+      if (c > 0 && p.paidDate && monthKey(p.paidDate) === key) { res.earnedMonth += c; res.earnedMonthCount++; }
+    } else if (Number(p.estCommission) > 0) {
+      res.pendingEstimate += Number(p.estCommission);
+      res.pendingCount++;
+    }
+  }
+  const r2 = (n) => Math.round(n * 100) / 100;
+  res.earnedMonth = r2(res.earnedMonth); res.earnedTotal = r2(res.earnedTotal); res.pendingEstimate = r2(res.pendingEstimate);
+  return res;
+}

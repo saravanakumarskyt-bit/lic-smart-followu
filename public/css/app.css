@@ -158,3 +158,6 @@ textarea.input{resize:vertical;min-height:80px}.msg-text{min-height:230px;line-h
 
 @media (max-width:380px){.stat-grid{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}.filters{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+.hero-logo{width:48px;height:48px;border-radius:12px;object-fit:contain;background:#fff;padding:3px}.hero-app{font-size:.8rem;font-weight:600;opacity:.9;letter-spacing:.02em;margin-bottom:2px}
+.logo-edit{display:flex;gap:12px;align-items:center}.logo-edit img{width:64px;height:64px;border-radius:14px;object-fit:contain;background:#fff;border:1px solid var(--line,#d5dbe6);padding:4px}

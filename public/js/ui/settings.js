@@ -32,8 +32,28 @@ export function renderMore(root) {
 }
 
 // ---------- profile ----------
+// Shrinks a picked image to a small PNG so it stays light inside the local database and backups.
+function logoFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const max = 256; const k = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k));
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/png'));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('That file is not a picture the app can read. Use a PNG or JPG.')); };
+    img.src = url;
+  });
+}
+
+export function applyBranding() { document.title = state.profile.appName || 'LIC Smart Follow-up'; }
+
 export function renderProfile(root) {
   const p = state.profile;
+  let logo = DB.safeLogo(p.logo);
   const inp = (k, label, attrs = {}) => { const i = h('input', { class: 'input', value: p[k] || '', autocomplete: 'off', ...attrs }); return [field(label, i), i]; };
   const [fName, iName] = inp('advisorName', 'Advisor name', { placeholder: 'e.g. Suresh Kumar' });
   const [fCode, iCode] = inp('agentCode', 'LIC agent code');
@@ -41,13 +61,28 @@ export function renderProfile(root) {
   const [fBr, iBr] = inp('branch', 'Branch name');
   const [fMob, iMob] = inp('mobile', 'Mobile number', { inputmode: 'tel', placeholder: 'Shown in messages if filled' });
   const [fMail, iMail] = inp('email', 'Email address', { type: 'email' });
+  const [fApp, iApp] = inp('appName', 'Your app name', { placeholder: 'e.g. Suresh Kumar Insurance Services', maxlength: '40' });
+  const preview = h('div', { class: 'logo-edit' });
+  const drawLogo = () => mount(preview,
+    logo ? h('img', { src: logo, alt: 'Your logo' }) : h('div', { class: 'muted small' }, 'No logo yet'),
+    h('div', { class: 'btn-row wrap' },
+      h('label', { class: 'btn soft sm' }, 'Choose logo', h('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp', hidden: true, onchange: async (e) => {
+        const f = e.target.files?.[0]; e.target.value = '';
+        if (!f) return;
+        try { logo = await logoFromFile(f); drawLogo(); } catch (err) { toast(err.message, { kind: 'bad' }); }
+      } })),
+      logo && h('button', { class: 'btn ghost sm', onclick: () => { logo = ''; drawLogo(); } }, 'Remove')));
+  drawLogo();
   mount(root, 
     h('div', { class: 'page-head' }, back(), h('h1', 'Profile')),
     h('p', { class: 'muted' }, 'Optional. Your name is used to sign customer messages ("Regards, Your Name, LIC Insurance Advisor"). Without a profile, messages have no signature. Stored only on this phone.'),
     fName, fCode, fDo, fBr, fMob, fMail,
+    h('h3', 'Your name and logo'),
+    h('p', { class: 'muted small' }, 'Shown on your Home screen and in the browser title. The name and icon under the app on your phone\'s home screen are set when the APK is built.'),
+    fApp, preview,
     h('div', { class: 'btn-row' },
-      h('button', { class: 'btn primary', onclick: async () => { await DB.saveProfile({ advisorName: iName.value, agentCode: iCode.value, doName: iDo.value, branch: iBr.value, mobile: iMob.value, email: iMail.value }); await reload(); toast('Profile saved'); } }, icon('check', 18), 'Save profile'),
-      h('button', { class: 'btn ghost', onclick: async () => { if (await confirmDialog({ title: 'Clear profile?', message: 'Messages will no longer be signed.', confirmText: 'Clear' })) { await DB.saveProfile({}); await reload(); renderProfile(root); toast('Profile cleared'); } } }, 'Clear')));
+      h('button', { class: 'btn primary', onclick: async () => { await DB.saveProfile({ advisorName: iName.value, agentCode: iCode.value, doName: iDo.value, branch: iBr.value, mobile: iMob.value, email: iMail.value, appName: iApp.value, logo }); await reload(); applyBranding(); toast('Profile saved'); } }, icon('check', 18), 'Save profile'),
+      h('button', { class: 'btn ghost', onclick: async () => { if (await confirmDialog({ title: 'Clear profile?', message: 'Messages will no longer be signed.', confirmText: 'Clear' })) { await DB.saveProfile({}); await reload(); applyBranding(); renderProfile(root); toast('Profile cleared'); } } }, 'Clear')));
 }
 
 // ---------- notifications ----------

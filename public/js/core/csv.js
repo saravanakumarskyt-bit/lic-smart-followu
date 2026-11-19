@@ -61,6 +61,7 @@ export function toCSV(rows) {
 export const EXPORT_HEADERS = [
   'Customer Name', 'Policy Number', 'Premium Amount', 'Due Date', 'Mobile Number', 'Policy Status',
   'Payment Status', 'Paid Date', 'Follow-up Status', 'Last Follow-up Date', 'Notes', 'Source PDF', 'Date Imported',
+  'Estimated Commission', 'Commission Earned', 'Total Premium Due', 'Instalments Due',
 ];
 
 export function policiesToCSV(policies) {
@@ -70,6 +71,7 @@ export function policiesToCSV(policies) {
       safeCell(p.customerName), p.policyNumber, p.premiumAmount ?? '', p.dueDate, p.mobile || '', safeCell(p.policyStatus || ''),
       p.paymentStatus || 'unpaid', p.paidDate || '', p.followUpStatus || 'pending', p.lastFollowUpDate || '',
       safeCell(p.notes || ''), safeCell(p.sourceName || ''), (p.importedAt || '').slice(0, 10),
+      p.estCommission ?? '', p.commissionEarned ?? '', p.totalPremium ?? '', p.instalmentsDue ?? '',
     ]);
   }
   return toCSV(rows);

@@ -410,4 +410,37 @@ export function registerTests(S, { assert, eq, FIX, here, newCtx, URL_ }) {
     await c.page.waitForSelector('.cust-head'); assert((await c.page.textContent('#main')).includes('Policy history'));
     eq(c.errors, [], 'console errors');
   });
+  S.test('commission: read from the list, worked out when the advisor confirms payment, shown on Home, undone with the payment', async (c) => {
+    await c.open(); await c.importPdfs(['sample-h-lic-monthly.pdf']); await c.save();
+    await c.page.goto(`${URL_}#/policies/all`); await c.page.waitForSelector('.pcard');
+    await c.page.fill('.search', '990000011'); await c.page.waitForFunction(() => document.querySelectorAll('.pcard').length === 1);
+    await c.page.locator('.pcard-main').first().click(); await c.page.waitForSelector('.sheet >> text=Confirm payment');
+    assert((await c.page.textContent('.sheet')).includes('Estimated commission'), 'estimate shown before payment');
+    await c.page.click('.sheet >> text=Confirm payment');
+    eq(await c.page.inputValue('.sheet input[placeholder=optional]'), '166.4', 'one instalment -> proportional commission');
+    await c.page.click('.sheet >> text=/^All 7 due/');
+    eq(await c.page.inputValue('.sheet input[placeholder=optional]'), '1164.8', 'all dues -> full commission');
+    await c.page.click('text=Yes, payment received'); await c.page.waitForSelector('.sheet .badge.ok');
+    assert((await c.page.textContent('.sheet')).includes('Commission earned'), 'earned commission shown');
+    await c.page.click('.sheet .icon-btn[aria-label=Close]');
+    await c.page.goto(`${URL_}#/home`); await c.page.waitForSelector('text=Earned this month');
+    assert((await c.page.textContent('#main')).includes('1,164.8'), 'home commission card');
+    eq(c.errors, [], 'console errors');
+  });
+
+  S.test('own app name and logo: saved in the profile, shown on Home and survive a reload', async (c) => {
+    await c.open(); await c.importPdfs(['sample-a-standard.pdf']); await c.save();
+    await c.page.goto(`${URL_}#/profile`); await c.page.waitForSelector('text=Your name and logo');
+    await c.page.fill('input[placeholder^="e.g. Suresh Kumar Insurance"]', 'Test Advisor Services');
+    await c.page.setInputFiles('input[type=file][accept^="image"]', path.join(FIX, 'sample-d-scanned.png'));
+    await c.page.waitForSelector('.logo-edit img');
+    await c.page.click('text=Save profile'); await c.page.waitForSelector('text=Profile saved');
+    eq(await c.page.title(), 'Test Advisor Services');
+    await c.page.goto(`${URL_}#/home`); await c.page.waitForSelector('.hero-app');
+    eq(await c.page.textContent('.hero-app'), 'Test Advisor Services');
+    assert(await c.page.locator('.hero-logo').count() === 1, 'logo on home');
+    await c.page.reload(); await c.page.waitForSelector('.hero-app');
+    eq(await c.page.title(), 'Test Advisor Services', 'persists after reload');
+    eq(c.errors, [], 'console errors');
+  });
 }

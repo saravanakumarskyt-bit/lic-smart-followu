@@ -341,6 +341,7 @@ function recordFromColumns(cells, cols, meta) {
   if (col.instalmentsDue && /^\d{1,3}$/.test(cleanText(col.instalmentsDue))) fields.extra.instalmentsDue = Number(cleanText(col.instalmentsDue));
   if (col.totalPremium) { const t = firstAmount(col.totalPremium); if (t !== null) fields.extra.totalPremium = t; }
   if (col.flag) fields.extra.flag = cleanText(col.flag);
+  if (col.commission) { const c = firstAmount(col.commission); if (c !== null) fields.extra.estCommission = c; }
   if (col.dueDate) {
     const ds = findDates(col.dueDate);
     const ok = ds.find((d) => d.iso);

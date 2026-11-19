@@ -109,13 +109,19 @@ export async function savePrefs(patch) {
   return next;
 }
 
-export const EMPTY_PROFILE = { advisorName: '', agentCode: '', doName: '', branch: '', mobile: '', email: '' };
+/** Only a small embedded raster image is accepted as a logo (never SVG or a link), so a backup file cannot inject anything. */
+export function safeLogo(v) {
+  const s = String(v ?? '');
+  return /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(s) && s.length < 400000 ? s : '';
+}
+
+export const EMPTY_PROFILE = { advisorName: '', agentCode: '', doName: '', branch: '', mobile: '', email: '', appName: '', logo: '' };
 export async function getProfile() {
   return { ...EMPTY_PROFILE, ...(await getSetting('profile', {})) };
 }
 export async function saveProfile(p) {
   const clean = {};
-  for (const k of Object.keys(EMPTY_PROFILE)) clean[k] = cleanText(p[k] ?? '');
+  for (const k of Object.keys(EMPTY_PROFILE)) clean[k] = k === 'logo' ? safeLogo(p.logo) : cleanText(p[k] ?? '');
   await setSetting('profile', clean);
   return clean;
 }
@@ -125,6 +131,8 @@ export async function saveProfile(p) {
 export const dupKeyOf = (p) => `${p.policyNumber}|${p.dueDate}`;
 
 /** Fill defaults and derived fields. Never invents customer data. */
+const numOrNull = (v) => (v === '' || v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v));
+
 export function normalizePolicy(p, now = new Date()) {
   const iso = now.toISOString();
   const out = {
@@ -143,6 +151,12 @@ export function normalizePolicy(p, now = new Date()) {
     paymentStatus: p.paymentStatus === 'paid' ? 'paid' : 'unpaid',
     paidDate: p.paidDate || '',
     paidAmount: p.paidAmount ?? null,
+    estCommission: numOrNull(p.estCommission),
+    commissionEarned: numOrNull(p.commissionEarned),
+    totalPremium: numOrNull(p.totalPremium),
+    instalmentsDue: numOrNull(p.instalmentsDue),
+    commencementDate: p.commencementDate || '',
+    dueDateDerived: !!p.dueDateDerived,
     notes: String(p.notes ?? '').slice(0, 5000),
     sourceId: p.sourceId || '',
     sourceName: p.sourceName || (p.manual ? 'Added manually' : ''),
@@ -288,15 +302,15 @@ export async function recordFollowUp(policyId, { type = 'call', status = 'contac
 }
 
 /** The only way a policy becomes "paid": an explicit user action. */
-export async function confirmPayment(policyId, { paidDate, paidAmount = null, note = '' } = {}) {
+export async function confirmPayment(policyId, { paidDate, paidAmount = null, commissionEarned = null, note = '' } = {}) {
   const now = new Date();
-  const p = await updatePolicy(policyId, { paymentStatus: 'paid', paidDate: paidDate || todayISO(now), paidAmount, followUpStatus: 'completed' });
+  const p = await updatePolicy(policyId, { paymentStatus: 'paid', paidDate: paidDate || todayISO(now), paidAmount, commissionEarned, followUpStatus: 'completed' });
   await logActivity({ policyId, type: 'paid', note: note || 'Payment confirmed by advisor' }, now);
   return p;
 }
 
 export async function undoPayment(policyId) {
-  const p = await updatePolicy(policyId, { paymentStatus: 'unpaid', paidDate: '', paidAmount: null });
+  const p = await updatePolicy(policyId, { paymentStatus: 'unpaid', paidDate: '', paidAmount: null, commissionEarned: null });
   await logActivity({ policyId, type: 'status', note: 'Payment confirmation undone' });
   return p;
 }

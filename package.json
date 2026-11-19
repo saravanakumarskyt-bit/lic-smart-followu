@@ -15,8 +15,8 @@
     "privacy-check": "node scripts/privacy-check.mjs",
     "screenshots": "node scripts/screenshots.mjs",
     "vendor:ocr": "node scripts/vendor-ocr.mjs",
-    "android:add": "cap add android && node scripts/patch-android.mjs && cap sync android",
-    "android:sync": "npm run sw:update && cap sync android && node scripts/patch-android.mjs",
+    "android:add": "cap add android && node scripts/patch-android.mjs && python3 scripts/android-icons.py && cap sync android",
+    "android:sync": "npm run sw:update && cap sync android && node scripts/patch-android.mjs && python3 scripts/android-icons.py",
     "android:open": "cap open android",
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug"
   },
@@ -37,5 +37,5 @@
     "tesseract.js": "^5.1.1",
     "tesseract.js-core": "^5.1.1"
   },
-  "engines": { "node": ">=20" }
+  "engines": { "node": ">=22" }
 }

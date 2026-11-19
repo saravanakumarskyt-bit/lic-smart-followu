@@ -340,3 +340,33 @@ test('report: sections and customer CSV', () => {
   const csv = customersToCSV(groupCustomers(list));
   assert.match(csv, /^Customer,Mobile,Policies/);
 });
+
+import { commissionForPayment, commissionSummary } from '../../public/js/core/due.js';
+import { safeLogo } from '../../public/js/core/db.js';
+
+test('commission: proportional to the amount paid, capped at the estimate, null without an estimate', () => {
+  const p = { estCommission: 1164.8, totalPremium: 5824, premiumAmount: 832 };
+  assert.equal(commissionForPayment(p, 832), 166.4);
+  assert.equal(commissionForPayment(p, 5824), 1164.8);
+  assert.equal(commissionForPayment(p, 99999), 1164.8, 'never more than the estimate');
+  assert.equal(commissionForPayment({ premiumAmount: 500 }, 500), null);
+  assert.equal(commissionForPayment({ estCommission: 100 }, 500), 100, 'no total on the list: estimate as given');
+});
+
+test('commission summary counts earned only from confirmed payments; pending is an estimate on unpaid policies', () => {
+  const ps = [
+    { paymentStatus: 'paid', paidDate: '2026-11-10', commissionEarned: 166.4, dueDate: '2026-11-01' },
+    { paymentStatus: 'paid', paidDate: '2026-10-10', commissionEarned: 100, dueDate: '2026-10-01' },
+    { paymentStatus: 'unpaid', estCommission: 500, dueDate: '2026-11-05' },
+    { paymentStatus: 'unpaid', dueDate: '2026-11-06' },
+  ];
+  const s = commissionSummary(ps, '2026-11-18');
+  assert.equal(s.earnedMonth, 166.4); assert.equal(s.earnedTotal, 266.4); assert.equal(s.pendingEstimate, 500); assert.equal(s.pendingCount, 1);
+});
+
+test('logo: only small embedded raster images are accepted', () => {
+  assert.equal(safeLogo('data:image/png;base64,iVBORw0KGgo='), 'data:image/png;base64,iVBORw0KGgo=');
+  assert.equal(safeLogo('data:image/svg+xml;base64,PHN2Zz4='), '');
+  assert.equal(safeLogo('https://example.com/x.png'), '');
+  assert.equal(safeLogo('javascript:alert(1)'), '');
+});

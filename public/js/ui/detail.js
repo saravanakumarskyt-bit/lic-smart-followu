@@ -4,7 +4,7 @@ import { state, reload, ctx } from '../store.js';
 import * as DB from '../core/db.js';
 import { formatDate, formatDateDMY, todayISO, isValidISO } from '../core/dates.js';
 import { formatINR } from '../core/messages.js';
-import { bucketOf, daysUntil } from '../core/due.js';
+import { bucketOf, daysUntil, commissionForPayment } from '../core/due.js';
 import { validatePolicy, normalizeMobile, normalizePolicyNumber, parseAmount } from '../core/validate.js';
 import { openMessageSheet } from './message.js';
 import { openExternal } from '../platform.js';
@@ -110,15 +110,26 @@ export function openPaymentSheet(policy) {
   openSheet((close) => {
     const date = h('input', { class: 'input', type: 'date', value: todayISO(), max: todayISO() });
     const amt = h('input', { class: 'input', inputmode: 'decimal', value: policy.premiumAmount ?? '' });
+    const guess = () => { const c = commissionForPayment(policy, amt.value.trim() === '' ? null : parseAmount(amt.value)); return c === null ? '' : String(c); };
+    const comm = h('input', { class: 'input', inputmode: 'decimal', value: guess(), placeholder: 'optional' });
+    let commEdited = false;
+    comm.addEventListener('input', () => { commEdited = true; });
+    amt.addEventListener('input', () => { if (!commEdited) comm.value = guess(); });
+    const hasTotal = Number(policy.totalPremium) > 0 && Number(policy.totalPremium) !== Number(policy.premiumAmount);
     return [
       h('p', {}, 'Confirm only if the customer has actually paid this premium. The app never marks a policy paid on its own.'),
       h('p', { class: 'muted' }, `${policy.customerName || 'Customer'} · Policy ${policy.policyNumber} · due ${formatDate(policy.dueDate)}`),
       h('div', { class: 'grid2' }, field('Date paid', date), field('Amount paid (₹)', amt)),
+      hasTotal && h('div', { class: 'btn-row wrap' },
+        h('button', { class: 'btn soft sm', onclick: () => { amt.value = String(policy.premiumAmount ?? ''); commEdited = false; comm.value = guess(); } }, `One instalment (${formatINR(policy.premiumAmount)})`),
+        h('button', { class: 'btn soft sm', onclick: () => { amt.value = String(policy.totalPremium); commEdited = false; comm.value = guess(); } }, `All ${policy.instalmentsDue || ''} due (${formatINR(policy.totalPremium)})`.replace('All  due', 'All due'))),
+      field('Commission earned (₹)', comm, Number(policy.estCommission) > 0 ? `The due list estimated ${formatINR(policy.estCommission)} on ${formatINR(policy.totalPremium || policy.premiumAmount)}. This is worked out from the amount paid; change it if your real commission differs.` : 'Optional. This list gave no commission estimate for this policy.'),
       h('div', { class: 'btn-row' },
         h('button', { class: 'btn ghost', onclick: close }, 'Cancel'),
         h('button', { class: 'btn ok', onclick: async () => {
           const paidAmount = amt.value.trim() === '' ? null : parseAmount(amt.value);
-          await DB.confirmPayment(policy.id, { paidDate: isValidISO(date.value) ? date.value : todayISO(), paidAmount });
+          const commissionEarned = comm.value.trim() === '' ? null : parseAmount(comm.value);
+          await DB.confirmPayment(policy.id, { paidDate: isValidISO(date.value) ? date.value : todayISO(), paidAmount, commissionEarned });
           close();
           await changed('Payment confirmed');
         } }, icon('check', 18), 'Yes, payment received')),
@@ -151,6 +162,10 @@ export function openPolicyDetail(policyId) {
           row('Mobile', p.mobile || 'Not available'),
           row('Policy status', p.policyStatus),
           row('Premium term', p.premiumTerm), row('Mode', p.mode), row('Plan', p.plan),
+          p.instalmentsDue ? row('Instalments due', `${p.instalmentsDue}${p.totalPremium ? ' · total ' + formatINR(p.totalPremium) : ''}`) : null,
+          p.paymentStatus === 'paid'
+            ? (p.commissionEarned ? row('Commission earned', formatINR(p.commissionEarned)) : null)
+            : (p.estCommission ? row('Estimated commission', formatINR(p.estCommission)) : null),
           row('Follow-up', FOLLOWUP_LABEL[p.followUpStatus] || p.followUpStatus),
           row('Last follow-up', p.lastFollowUpDate ? formatDate(p.lastFollowUpDate) : 'Never'),
           p.paymentStatus === 'paid' ? row('Payment confirmed', `${formatDate(p.paidDate)}${p.paidAmount ? ' · ' + formatINR(p.paidAmount) : ''}`) : null,

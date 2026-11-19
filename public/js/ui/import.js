@@ -64,7 +64,7 @@ function makeRow(rec, fileIdx) {
     },
     extra: {
       policyStatus: rec.policyStatus || '', premiumTerm: rec.premiumTerm || '', mode: rec.mode || '', plan: rec.plan || '',
-      commencementDate: rec.commencementDate, instalmentsDue: rec.instalmentsDue, totalPremium: rec.totalPremium, dueDateDerived: rec.dueDateDerived,
+      commencementDate: rec.commencementDate, instalmentsDue: rec.instalmentsDue, totalPremium: rec.totalPremium, dueDateDerived: rec.dueDateDerived, estCommission: rec.estCommission, commissionEarned: rec.commissionEarned,
       paymentStatus: rec.paymentStatus, paidDate: rec.paidDate, followUpStatus: rec.followUpStatus, lastFollowUpDate: rec.lastFollowUpDate, notes: rec.notes,
     },
     errors: {}, warnings: {}, dupFile: false, dupDb: false,

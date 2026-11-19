@@ -1,6 +1,7 @@
 import { h, icon, toast, mount } from './dom.js';
 import { state, ctx } from '../store.js';
-import { inCategory, monthlyCollection, isPaid } from '../core/due.js';
+import { inCategory, monthlyCollection, commissionSummary, isPaid } from '../core/due.js';
+import { safeLogo } from '../core/db.js';
 import { addDays, formatDate } from '../core/dates.js';
 import { formatINR } from '../core/messages.js';
 import { openMessageSheet } from './message.js';
@@ -38,9 +39,12 @@ export function renderHome(root) {
 
   root.appendChild(h('header', { class: 'hero' },
     h('div', {},
+      state.profile.appName && h('div', { class: 'hero-app' }, state.profile.appName),
       h('div', { class: 'hero-hi' }, greeting()),
       h('div', { class: 'hero-date' }, new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))),
-    h('div', { class: 'hero-badge' }, icon('shield', 22))));
+    safeLogo(state.profile.logo)
+      ? h('img', { class: 'hero-logo', src: state.profile.logo, alt: '' })
+      : h('div', { class: 'hero-badge' }, icon('shield', 22))));
 
   if (!hasData) {
     root.appendChild(emptyState('Welcome to LIC Smart Follow-up',
@@ -115,6 +119,17 @@ export function renderHome(root) {
       h('div', {}, h('div', { class: 'muted small' }, 'Due'), h('strong', formatINR(mc.dueAmount)), h('div', { class: 'small muted' }, `${mc.dueCount} policies`)),
       h('div', {}, h('div', { class: 'muted small' }, 'Collected'), h('strong', { class: 'txt-ok' }, formatINR(mc.paidAmount)), h('div', { class: 'small muted' }, `${mc.paidCount} paid · ${mc.percent}%`)),
       h('div', {}, h('div', { class: 'muted small' }, 'Pending'), h('strong', { class: 'txt-bad' }, formatINR(mc.pendingAmount)), h('div', { class: 'small muted' }, `${mc.pendingCount} policies`)))));
+
+  // commission
+  const cs = commissionSummary(state.policies, state.today);
+  if (cs.earnedTotal > 0 || cs.pendingEstimate > 0) {
+    root.appendChild(h('section', { class: 'card' },
+      h('div', { class: 'card-head' }, h('h3', 'Commission'), h('span', { class: 'muted small' }, 'Earned = payments you confirmed')),
+      h('div', { class: 'collect' },
+        h('div', {}, h('div', { class: 'muted small' }, 'Earned this month'), h('strong', { class: 'txt-ok' }, formatINR(cs.earnedMonth)), h('div', { class: 'small muted' }, `${cs.earnedMonthCount} payments`)),
+        h('div', {}, h('div', { class: 'muted small' }, 'Earned in total'), h('strong', formatINR(cs.earnedTotal))),
+        h('div', {}, h('div', { class: 'muted small' }, 'Still to earn (estimate)'), h('strong', { class: 'txt-bad' }, formatINR(cs.pendingEstimate)), h('div', { class: 'small muted' }, `${cs.pendingCount} policies`)))));
+  }
 
   // performance
   const week = last7Days();

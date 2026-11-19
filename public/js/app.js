@@ -5,7 +5,7 @@ import { renderHome } from './ui/home.js';
 import { renderPolicies, renderCalendar } from './ui/policies.js';
 import { renderCustomers, renderCustomer } from './ui/customers.js';
 import { renderImport, renderHistory, dismissReport } from './ui/import.js';
-import { renderMore, renderProfile, renderNotifications, renderPreferences, renderBackup, renderHelp } from './ui/settings.js';
+import { applyBranding, renderMore, renderProfile, renderNotifications, renderPreferences, renderBackup, renderHelp } from './ui/settings.js';
 import { rescheduleAll, webCatchUp, onNotificationTap } from './notify.js';
 import { plugin, isNative } from './platform.js';
 import { requestPersistentStorage } from './core/db.js';
@@ -98,6 +98,7 @@ async function boot() {
   mountNavIcons();
   try { await reload(); } catch (e) { showError(new Error(`The local database could not be opened (${e.message}). If you are in a private window, open the app in a normal window.`)); return; }
   applyTheme();
+  applyBranding();
   startRouter();
   registerServiceWorker();
   requestPersistentStorage().catch(() => {});

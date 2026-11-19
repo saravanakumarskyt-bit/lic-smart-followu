@@ -139,3 +139,21 @@ test('garbage input does not crash and yields no records', () => {
   const items = [{ str: 'hello world', x: 10, y: 700, w: 50, h: 9 }, { str: 'nothing here', x: 10, y: 680, w: 50, h: 9 }];
   assert.deepEqual(parsePages([{ page: 1, rows: buildRows(items) }]).records, []);
 });
+
+test('LIC monthly premium-due list (S.No PolicyNo Name D.o.C Pln/Tm Mod FUP Flg InstPrem Due ...): FUP is month-only, day comes from D.o.C', { skip }, async () => {
+  const r = await extractAndParse(lib.pdfjs, load('sample-h-lic-monthly.pdf'));
+  const recs = r.records;
+  assert.equal(recs.length, 4, 'heading, agent code and footer lines are not policies');
+  assert.deepEqual(recs.map((x) => x.policyNumber), ['990000011', '990000012', '990000013', '990000014']);
+  assert.equal(byPolicy(recs, '990000011')[0].dueDate, '2026-05-27');
+  assert.equal(byPolicy(recs, '990000011')[0].premiumAmount, 832);
+  assert.equal(byPolicy(recs, '990000011')[0].extra?.dueDateDerived ?? byPolicy(recs, '990000011')[0].dueDateDerived, true);
+  assert.equal(byPolicy(recs, '990000012')[0].customerName, 'Long Test Customer Name Two', 'a date glued to a long name is not part of the name');
+  assert.equal(byPolicy(recs, '990000012')[0].dueDate, '2026-07-24');
+  assert.equal(byPolicy(recs, '990000013')[0].dueDate, '2026-02-28', 'commencement day 31 is clamped to the last day of February');
+  assert.equal(byPolicy(recs, '990000013')[0].mode, 'Mly');
+  assert.equal(byPolicy(recs, '990000011')[0].estCommission, 1164.8, 'EstCom column is read');
+  assert.equal(byPolicy(recs, '990000011')[0].totalPremium, 5824);
+  assert.equal(byPolicy(recs, '990000011')[0].instalmentsDue, 7);
+  assert.ok(recs.every((x) => !x.needsReview && Object.keys(x.errors).length === 0));
+});

@@ -15,6 +15,7 @@ const EXACT = {
   'follow-up status': 'followUpStatus', 'last follow-up date': 'lastFollowUpDate',
   'notes': 'notes', 'source pdf': 'sourceName', 'date imported': 'importedDate',
   'premium term': 'premiumTerm', 'mode': 'mode', 'plan': 'plan',
+  'estimated commission': 'estCommission', 'commission earned': 'commissionEarned', 'total premium due': 'totalPremium', 'instalments due': 'instalmentsDue',
 };
 
 function mapHeader(cell) {
@@ -57,6 +58,7 @@ export function csvToRecords(text, order = 'dmy') {
       else if (field === 'lastFollowUpDate') { const d = findDates(v, order).find((x) => x.iso); if (d) extra.lastFollowUpDate = d.iso; }
       else if (field === 'followUpStatus') { if (['pending', 'contacted', 'promised', 'completed'].includes(v.toLowerCase())) extra.followUpStatus = v.toLowerCase(); }
       else if (field === 'notes') extra.notes = v;
+      else if (['estCommission', 'commissionEarned', 'totalPremium', 'instalmentsDue'].includes(field)) { const n = v === '' ? null : parseAmount(v); if (n !== null) extra[field] = n; }
       else if (field === 'sourceName' || field === 'importedDate') { /* regenerated on import */ }
       else f[field] = v;
     });
