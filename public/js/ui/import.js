@@ -64,6 +64,7 @@ function makeRow(rec, fileIdx) {
     },
     extra: {
       policyStatus: rec.policyStatus || '', premiumTerm: rec.premiumTerm || '', mode: rec.mode || '', plan: rec.plan || '',
+      commencementDate: rec.commencementDate, instalmentsDue: rec.instalmentsDue, totalPremium: rec.totalPremium, dueDateDerived: rec.dueDateDerived,
       paymentStatus: rec.paymentStatus, paidDate: rec.paidDate, followUpStatus: rec.followUpStatus, lastFollowUpDate: rec.lastFollowUpDate, notes: rec.notes,
     },
     errors: {}, warnings: {}, dupFile: false, dupDb: false,
@@ -354,6 +355,9 @@ function renderVerify(root) {
     mount(fileNotes, 
       failedFiles.map((f) => h('div', { class: 'banner bad' }, icon('alert', 20), h('div', {}, h('strong', f.name), h('div', { class: 'small' }, `Could not be read: ${f.error}`)))),
       files.filter((f) => !f.error && f.rowCount === 0 && !f.scannedPages.length).map((f) => h('div', { class: 'banner warn' }, icon('alert', 20), h('div', {}, h('strong', f.name), h('div', { class: 'small' }, 'No policy rows were recognised in this file. If it is a different layout, use "Add customer" or import a CSV.')))),
+      session.rows.some((r) => r.extra.dueDateDerived)
+        ? h('div', { class: 'banner info' }, icon('alert', 20), h('div', {}, h('strong', 'Due dates are worked out from the list'), h('div', { class: 'small' }, 'This list shows only the due month (FUP). The day of the month is taken from each policy\'s date of commencement, which is how LIC premiums fall due. Check a few against the policy if you like.')))
+        : null,
       files.filter((f) => f.note).map((f) => h('div', { class: 'banner info' }, icon('alert', 20), h('div', {}, h('strong', f.name), h('div', { class: 'small' }, f.note)))),
       scannedFiles.map(({ f, i }) => h('div', { class: 'banner warn' }, icon('eye', 20),
         h('div', {}, h('strong', f.name), h('div', { class: 'small' }, `Page${f.scannedPages.length > 1 ? 's' : ''} ${f.scannedPages.slice(0, 12).join(', ')}${f.scannedPages.length > 12 ? '...' : ''} look${f.scannedPages.length > 1 ? '' : 's'} scanned (no text). OCR can read them but may make mistakes; every OCR row will need your review.`)),
