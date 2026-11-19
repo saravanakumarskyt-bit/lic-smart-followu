@@ -9,7 +9,7 @@
     "start": "node scripts/serve.mjs",
     "sw:update": "node scripts/update-sw.mjs",
     "fixtures": "python3 scripts/make-test-pdfs.py",
-    "test": "node --test tests/unit/",
+    "test": "node --test \"tests/unit/*.test.mjs\"",
     "test:e2e": "node tests/e2e/run.mjs",
     "test:all": "npm run sw:update && npm test && npm run test:e2e",
     "privacy-check": "node scripts/privacy-check.mjs",
