@@ -9,7 +9,7 @@
 //  3. Read data rows column by column. When a row has no usable column (or there is no header at all)
 //     fall back to pattern detection on the whole row (policy number, date, amount, mobile, name).
 //  4. Score every record. Nothing is invented: a field that cannot be found stays empty and is flagged.
-import { findDates, isValidISO } from './dates.js';
+import { findDates, isValidISO, makeISO, daysInMonth } from './dates.js';
 import {
   cleanText, findMobiles, normalizePolicyNumber, parseAmount, toTitleCase, validatePolicy, hasErrors, duplicateKey,
 } from './validate.js';
@@ -61,13 +61,17 @@ export function buildRows(items, { rowTolerance } = {}) {
 const FIELD_PATTERNS = [
   ['sno', /^(s\.?\s*no\.?|sl\.?\s*(no\.?)?|sr\.?\s*(no\.?)?|serial(\s*no\.?)?|#|no\.?)$/i],
   ['status', /(status|condition|policy\s*state)/i],
+  ['flag', /^(flg|flag)$/i],
   ['policyNumber', /(pol(icy)?\.?\s*(no|num|number|#|id)\b|pol\.?\s*no|policy\s*no|\bpolicy$)/i],
   ['dob', /(\bdob\b|birth)/i],
-  ['commencement', /(\bdoc\b|commenc|date\s*of\s*comm|issue\s*date|risk\s*date)/i],
+  ['commencement', /(\bdoc\b|\bd\.?\s*o\.?\s*c\b|commenc|date\s*of\s*comm|issue\s*date|risk\s*date)/i],
   ['term', /(\bppt\b|\bpt\b|pay(ing)?\s*term|prem(ium)?\s*(pay(ing)?\s*)?term|\bterm\b)/i],
-  ['mode', /\bmode\b/i],
-  ['plan', /(\bplan\b|table|\btbl\b)/i],
+  ['mode', /(\bmode\b|^mod$)/i],
+  ['plan', /(\bplan\b|\bpln\b|table|\btbl\b)/i],
   ['dueDate', /(\bfup\b|fall\s*due|next\s*due|due\s*date|prem(ium)?\s*due|\bdue\b|paid\s*to\s*date\s*\+)/i],
+  ['gst', /^gst$/i],
+  ['commission', /(^est\.?\s*com|commission)/i],
+  ['totalPremium', /^(totprem|tot\.?\s*prem(ium)?)$/i],
   ['mobile', /(mobile|\bmob\b|phone|contact|cell|\bmno\b)/i],
   ['name', /(name|policy\s*holder|policyholder|assured|customer|client|holder)/i],
   ['premiumAmount', /(prem(ium)?|install?ment|\binst\b|amount|\bamt\b|\bmod(al)?\s*prem|\bprm\b)/i],
@@ -138,9 +142,13 @@ export function findHeader(rows, startIndex) {
     const field = c.text.length <= 40 ? classifyHeader(c.text) : null;
     if (field) cols.push({ field, x: c.x, w: c.w, text: c.text });
   }
-  // Keep the first column found for each field.
+  // Keep the first column found for each field. A second column of the same kind stays as an ignored column so its cells
+  // do not leak into a neighbour (a bare "Due" next to "FUP" is the count of instalments due, not a date).
   const seen = new Set();
-  const unique = cols.filter((c) => (seen.has(c.field) ? false : seen.add(c.field)));
+  const unique = cols.map((c) => {
+    if (!seen.has(c.field)) { seen.add(c.field); return c; }
+    return { ...c, field: c.field === 'dueDate' && /^due$/i.test(c.text) ? 'instalmentsDue' : `ignored_${c.field}` };
+  });
   return { cols: unique, rowsUsed: best.rowsUsed };
 }
 
@@ -189,6 +197,8 @@ function firstAmount(text) {
 
 function pickPolicyNumber(text) {
   const t = String(text ?? '');
+  const longs = t.split(/\s+/).filter((x) => /^\d{8,10}$/.test(x));
+  if (longs.length === 1) return longs[0]; // "1 334954753": serial number then policy number
   const direct = normalizePolicyNumber(t);
   if (direct) return direct;
   const m = /(?<![\d])(\d{8,9})(?![\d])/.exec(t) || /(?<![\d])(\d{7,12})(?![\d])/.exec(t);
@@ -316,17 +326,38 @@ function recordFromColumns(cells, cols, meta) {
   if (!fields.policyNumber && h) { fields.policyNumber = h.fields.policyNumber; issues.push('Policy number was found outside its column'); }
   if (!fields.policyNumber) return null;
 
-  // Name
-  const nameText = cleanText(col.name || '');
+  // Name (a long name can run into the next column; a date inside it is the date of commencement)
+  let nameText = cleanText(col.name || '');
+  let nameDate = null;
+  const nd = findDates(nameText).find((d) => d.iso);
+  if (nd) { nameDate = nd.iso; nameText = cleanText(nameText.replace(nd.raw, ' ')); }
   fields.customerName = nameText || (h && h.fields.customerName) || '';
   if (!nameText && fields.customerName) issues.push('Name was guessed from the row text');
 
   // Due date
+  const commencement = (col.commencement && findDates(col.commencement).find((d) => d.iso)?.iso) || nameDate || '';
+  fields.extra = {};
+  if (commencement) fields.extra.commencementDate = commencement;
+  if (col.instalmentsDue && /^\d{1,3}$/.test(cleanText(col.instalmentsDue))) fields.extra.instalmentsDue = Number(cleanText(col.instalmentsDue));
+  if (col.totalPremium) { const t = firstAmount(col.totalPremium); if (t !== null) fields.extra.totalPremium = t; }
+  if (col.flag) fields.extra.flag = cleanText(col.flag);
   if (col.dueDate) {
     const ds = findDates(col.dueDate);
     const ok = ds.find((d) => d.iso);
+    const my = /^(\d{1,2})\s*[/-]\s*(\d{4})$/.exec(cleanText(col.dueDate));
     if (ok) fields.dueDate = ok.iso;
-    else {
+    else if (my && Number(my[1]) >= 1 && Number(my[1]) <= 12) {
+      // Month-only due ("FUP 05/2026"). The day of the month is the day of the date of commencement, never a guess.
+      const y = Number(my[2]); const mo = Number(my[1]);
+      const cd = commencement ? Number(commencement.slice(8, 10)) : 0;
+      if (cd) {
+        fields.dueDate = makeISO(y, mo, Math.min(cd, daysInMonth(y, mo)));
+        fields.extra.dueDateDerived = true;
+      } else {
+        fields.dueDateRaw = col.dueDate;
+        issues.push(`The list shows only the month (${col.dueDate}) and no date of commencement, so the due day is unknown. Enter it.`);
+      }
+    } else {
       fields.dueDateRaw = ds[0]?.raw || col.dueDate;
     }
   } else if (h && h.fields.dueDate) {
@@ -361,6 +392,8 @@ function recordFromHeuristic(rowText, meta) {
   return finishRecord(h.fields, { ...meta, issues: [...h.issues, 'Read without column headings: please check each value'], viaHeader: false, rawText: rowText });
 }
 
+const HARD_NOISE = /(page\s*no\b|page\s*total|grand\s*total|agent\s*(code|name)\s*:|branch\s*code\s*:|premium\s*due\s*list)/i;
+
 function isNoiseRow(row) {
   const t = row.text;
   return NOISE_WORDS.test(t) && !pickPolicyNumber(t);
@@ -382,8 +415,15 @@ export function parsePages(pages) {
     let pageHeader = null;
     let i = 0;
     let prev = null;
+    let headerAt = -1;
+    for (let k = 0; k < rows.length && headerAt < 0; k++) { const f = findHeader(rows, k); if (f && f.cols.length >= 2) headerAt = k; }
     while (i < rows.length) {
       const row = rows[i];
+      if ((headerAt >= 0 && i < headerAt) || HARD_NOISE.test(row.text)) {
+        skipped.push({ page: pg.page, text: row.text.slice(0, 120), reason: 'heading or total line' });
+        i++;
+        continue;
+      }
       if (!pageHeader) {
         const found = findHeader(rows, i);
         if (found && found.cols.length >= 2) {
